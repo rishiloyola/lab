@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 require_relative 'setup.rb'
-require 'grit'
+require 'git'
 require "erb"
 
 ENCODING_OPTIONS = {
@@ -30,19 +30,23 @@ def last_tagged_version
   %x[git describe --tags --abbrev=0].chomp
 end
 
-repo = Grit::Repo.new(".")
-head = repo.head
-head_commit_sha = `git log -1 --pretty="%H"`.strip
-commit = repo.commit(head_commit_sha)
+git = Git.open('.')
+commit = git.object('HEAD')
 
 if ENV['TRAVIS_BRANCH']
   # if this is a tag build then the branch name will actually be the tag name
   branch_name = ENV['TRAVIS_BRANCH']
-elsif head != nil
-  branch_name = head.name
+else
+  branch_name = commit.name
 end
 
-short_message = ERB::Util.html_escape(commit.short_message.gsub("\n", "\\n"))
+if ENV['TRAVIS_COMMIT']
+  commit_sha = ENV['TRAVIS_COMMIT']
+else
+  commit_sha = commit.sha
+end
+
+short_message = ERB::Util.html_escape(commit.message.lines.first.strip)
 message = ERB::Util.html_escape(commit.message.gsub("\n", "\\n"))
 
 version = <<HEREDOC
@@ -52,12 +56,12 @@ define(function (require) {
     "repo": {
       "branch": "#{branch_name}",
       "commit": {
-        "sha":           "#{commit.id}",
-        "short_sha":      "#{commit.id[0..7]}",
-        "url":            "https://github.com/concord-consortium/lab/commit/#{commit.id[0..7]}",
+        "sha":           "#{commit_sha}",
+        "short_sha":     "#{commit_sha[0..7]}",
+        "url":           "https://github.com/concord-consortium/lab/commit/#{commit_sha[0..7]}",
         "author":        "#{commit.author.name}",
         "email":         "#{commit.author.email}",
-        "date":          "#{commit.committed_date}",
+        "date":          "#{commit.date}",
         "short_message": "#{short_message}",
         "message":       "#{cleanup_string(message)}"
       },
